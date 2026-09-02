@@ -1,0 +1,712 @@
+-- Private Chat (công tắc Fake Name nằm cạnh công tắc Theme)
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
+local TweenService = game:GetService("TweenService")
+local SoundService = game:GetService("SoundService")
+
+-- ================== CẤU HÌNH ==================
+local ROOM_CODE = "tinslatte"
+local POLL_INTERVAL = 1.5
+local OWNER_ID = 4314034184
+-- =============================================
+
+local Topic = "robloxchat-" .. ROOM_CODE:lower():gsub("%W", "")
+local API = "https://ntfy.sh/" .. Topic
+
+local isOwner = LocalPlayer.UserId == OWNER_ID
+local FakeNameEnabled = true
+local FakeUserId = nil
+local FakeDisplayName = nil
+
+local CoreGui = game:GetService("CoreGui")
+pcall(function()
+    if CoreGui:FindFirstChild("PrivateChatGui") then
+        CoreGui.PrivateChatGui:Destroy()
+    end
+end)
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "PrivateChatGui"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = CoreGui
+
+local isDark = true
+
+local Themes = {
+    Dark = {
+        MainBg = Color3.fromRGB(18, 18, 24),
+        TitleBg = Color3.fromRGB(28, 28, 38),
+        ChatBg = Color3.fromRGB(14, 14, 20),
+        InputBg = Color3.fromRGB(28, 28, 38),
+        Stroke = Color3.fromRGB(55, 55, 75),
+        TitleText = Color3.fromRGB(210, 210, 255),
+        Placeholder = Color3.fromRGB(110, 110, 140),
+        Text = Color3.fromRGB(235, 235, 255),
+        SendBtn = Color3.fromRGB(65, 105, 255),
+    },
+    Light = {
+        MainBg = Color3.fromRGB(245, 245, 250),
+        TitleBg = Color3.fromRGB(230, 230, 240),
+        ChatBg = Color3.fromRGB(255, 255, 255),
+        InputBg = Color3.fromRGB(235, 235, 245),
+        Stroke = Color3.fromRGB(180, 180, 200),
+        TitleText = Color3.fromRGB(40, 40, 60),
+        Placeholder = Color3.fromRGB(140, 140, 160),
+        Text = Color3.fromRGB(30, 30, 40),
+        SendBtn = Color3.fromRGB(65, 105, 255),
+    }
+}
+
+local Main = Instance.new("Frame")
+Main.Name = "Main"
+Main.Size = UDim2.new(0, 500, 0, 280)
+Main.Position = UDim2.new(0.5, -240, 0.55, 0)
+Main.BackgroundColor3 = Themes.Dark.MainBg
+Main.BorderSizePixel = 0
+Main.Active = true
+Main.Draggable = true
+Main.Visible = true
+Main.Parent = ScreenGui
+
+local Corner = Instance.new("UICorner")
+Corner.CornerRadius = UDim.new(0, 10)
+Corner.Parent = Main
+
+local Stroke = Instance.new("UIStroke")
+Stroke.Color = Themes.Dark.Stroke
+Stroke.Thickness = 1.4
+Stroke.Parent = Main
+
+-- Title
+local TitleBar = Instance.new("Frame")
+TitleBar.Size = UDim2.new(1, 0, 0, 34)
+TitleBar.BackgroundColor3 = Themes.Dark.TitleBg
+TitleBar.BorderSizePixel = 0
+TitleBar.Parent = Main
+
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 10)
+TitleCorner.Parent = TitleBar
+
+local TitleFix = Instance.new("Frame")
+TitleFix.Size = UDim2.new(1, 0, 0, 14)
+TitleFix.Position = UDim2.new(0, 0, 1, -14)
+TitleFix.BackgroundColor3 = Themes.Dark.TitleBg
+TitleFix.BorderSizePixel = 0
+TitleFix.Parent = TitleBar
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -180, 1, 0)
+Title.Position = UDim2.new(0, 12, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "💬 Chat Với Tín đẹp chai  | " .. ROOM_CODE
+Title.TextColor3 = Themes.Dark.TitleText
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 15
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = TitleBar
+
+-- Nút Đổi Room
+local ChangeRoomBtn = Instance.new("TextButton")
+ChangeRoomBtn.Size = UDim2.new(0, 26, 0, 26)
+ChangeRoomBtn.Position = UDim2.new(1, -152, 0, 4)
+ChangeRoomBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+ChangeRoomBtn.Text = "⚙"
+ChangeRoomBtn.TextColor3 = Color3.fromRGB(220, 220, 255)
+ChangeRoomBtn.Font = Enum.Font.GothamBold
+ChangeRoomBtn.TextSize = 14
+ChangeRoomBtn.Parent = TitleBar
+
+local ChangeCorner = Instance.new("UICorner")
+ChangeCorner.CornerRadius = UDim.new(0, 6)
+ChangeCorner.Parent = ChangeRoomBtn
+
+-- ===== CÔNG TẮC FAKE NAME (màu tím) =====
+local FakeSwitchBg = Instance.new("Frame")
+FakeSwitchBg.Size = UDim2.new(0, 40, 0, 20)
+FakeSwitchBg.Position = UDim2.new(1, -122, 0, 7)
+FakeSwitchBg.BackgroundColor3 = Color3.fromRGB(130, 80, 200) -- màu tím
+FakeSwitchBg.BorderSizePixel = 0
+FakeSwitchBg.Visible = isOwner
+FakeSwitchBg.Parent = TitleBar
+
+local FakeSwitchCorner = Instance.new("UICorner")
+FakeSwitchCorner.CornerRadius = UDim.new(1, 0)
+FakeSwitchCorner.Parent = FakeSwitchBg
+
+local FakeSwitchKnob = Instance.new("Frame")
+FakeSwitchKnob.Size = UDim2.new(0, 16, 0, 16)
+FakeSwitchKnob.Position = UDim2.new(0, 22, 0, 2)
+FakeSwitchKnob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+FakeSwitchKnob.BorderSizePixel = 0
+FakeSwitchKnob.Parent = FakeSwitchBg
+
+local FakeKnobCorner = Instance.new("UICorner")
+FakeKnobCorner.CornerRadius = UDim.new(1, 0)
+FakeKnobCorner.Parent = FakeSwitchKnob
+
+local FakeSwitchBtn = Instance.new("TextButton")
+FakeSwitchBtn.Size = UDim2.new(1, 0, 1, 0)
+FakeSwitchBtn.BackgroundTransparency = 1
+FakeSwitchBtn.Text = ""
+FakeSwitchBtn.Parent = FakeSwitchBg
+
+-- ===== CÔNG TẮC THEME (sáng/tối) =====
+local SwitchBg = Instance.new("Frame")
+SwitchBg.Size = UDim2.new(0, 40, 0, 20)
+SwitchBg.Position = UDim2.new(1, -78, 0, 7)
+SwitchBg.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+SwitchBg.BorderSizePixel = 0
+SwitchBg.Parent = TitleBar
+
+local SwitchCorner = Instance.new("UICorner")
+SwitchCorner.CornerRadius = UDim.new(1, 0)
+SwitchCorner.Parent = SwitchBg
+
+local SwitchKnob = Instance.new("Frame")
+SwitchKnob.Size = UDim2.new(0, 16, 0, 16)
+SwitchKnob.Position = UDim2.new(0, 2, 0, 2)
+SwitchKnob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+SwitchKnob.BorderSizePixel = 0
+SwitchKnob.Parent = SwitchBg
+
+local KnobCorner = Instance.new("UICorner")
+KnobCorner.CornerRadius = UDim.new(1, 0)
+KnobCorner.Parent = SwitchKnob
+
+local SwitchBtn = Instance.new("TextButton")
+SwitchBtn.Size = UDim2.new(1, 0, 1, 0)
+SwitchBtn.BackgroundTransparency = 1
+SwitchBtn.Text = ""
+SwitchBtn.Parent = SwitchBg
+
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 28, 0, 28)
+CloseBtn.Position = UDim2.new(1, -32, 0, 3)
+CloseBtn.BackgroundTransparency = 1
+CloseBtn.Text = "✕"
+CloseBtn.TextColor3 = Color3.fromRGB(180, 180, 200)
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextSize = 16
+CloseBtn.Parent = TitleBar
+
+-- Chat Area
+local ChatBox = Instance.new("ScrollingFrame")
+ChatBox.Size = UDim2.new(1, -16, 1, -86)
+ChatBox.Position = UDim2.new(0, 8, 0, 40)
+ChatBox.BackgroundColor3 = Themes.Dark.ChatBg
+ChatBox.BorderSizePixel = 0
+ChatBox.ScrollBarThickness = 4
+ChatBox.ScrollBarImageColor3 = Color3.fromRGB(70, 70, 110)
+ChatBox.CanvasSize = UDim2.new(0, 0, 0, 0)
+ChatBox.AutomaticCanvasSize = Enum.AutomaticSize.Y
+ChatBox.Parent = Main
+
+local ChatCorner = Instance.new("UICorner")
+ChatCorner.CornerRadius = UDim.new(0, 6)
+ChatCorner.Parent = ChatBox
+
+local ListLayout = Instance.new("UIListLayout")
+ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+ListLayout.Padding = UDim.new(0, 6)
+ListLayout.Parent = ChatBox
+
+local Padding = Instance.new("UIPadding")
+Padding.PaddingTop = UDim.new(0, 8)
+Padding.PaddingLeft = UDim.new(0, 8)
+Padding.PaddingRight = UDim.new(0, 8)
+Padding.PaddingBottom = UDim.new(0, 8)
+Padding.Parent = ChatBox
+
+-- Input
+local InputFrame = Instance.new("Frame")
+InputFrame.Size = UDim2.new(1, -16, 0, 36)
+InputFrame.Position = UDim2.new(0, 8, 1, -44)
+InputFrame.BackgroundColor3 = Themes.Dark.InputBg
+InputFrame.BorderSizePixel = 0
+InputFrame.Parent = Main
+
+local InputCorner = Instance.new("UICorner")
+InputCorner.CornerRadius = UDim.new(0, 6)
+InputCorner.Parent = InputFrame
+
+local TextBox = Instance.new("TextBox")
+TextBox.Size = UDim2.new(1, -210, 1, 0)
+TextBox.Position = UDim2.new(0, 10, 0, 0)
+TextBox.BackgroundTransparency = 1
+TextBox.Text = ""
+TextBox.PlaceholderText = "Nhấn / để gõ tin nhắn ấy"
+TextBox.TextColor3 = Themes.Dark.Text
+TextBox.PlaceholderColor3 = Themes.Dark.Placeholder
+TextBox.Font = Enum.Font.Gotham
+TextBox.TextSize = 15
+TextBox.TextXAlignment = Enum.TextXAlignment.Left
+TextBox.ClearTextOnFocus = false
+TextBox.Parent = InputFrame
+
+local SendBtn = Instance.new("TextButton")
+SendBtn.Size = UDim2.new(0, 200, 1, -6)
+SendBtn.Position = UDim2.new(1, -200, 0, 3)
+SendBtn.BackgroundColor3 = Themes.Dark.SendBtn
+SendBtn.Text = "enter để gửi bấm này lm cc j?"
+SendBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+SendBtn.Font = Enum.Font.GothamBold
+SendBtn.TextSize = 14
+SendBtn.Parent = InputFrame
+
+local SendCorner = Instance.new("UICorner")
+SendCorner.CornerRadius = UDim.new(0, 5)
+SendCorner.Parent = SendBtn
+
+-- Owner Fake Name UI (ở dưới)
+local OwnerFrame = Instance.new("Frame")
+OwnerFrame.Size = UDim2.new(1, -16, 0, 32)
+OwnerFrame.Position = UDim2.new(0, 8, 1, -80)
+OwnerFrame.BackgroundTransparency = 1
+OwnerFrame.Visible = isOwner and FakeNameEnabled
+OwnerFrame.Parent = Main
+
+local FakeNameBox = Instance.new("TextBox")
+FakeNameBox.Size = UDim2.new(0.65, 0, 1, 0)
+FakeNameBox.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+FakeNameBox.Text = ""
+FakeNameBox.PlaceholderText = "Nhập username (vd: cymaww)"
+FakeNameBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+FakeNameBox.PlaceholderColor3 = Color3.fromRGB(140, 140, 160)
+FakeNameBox.Font = Enum.Font.Gotham
+FakeNameBox.TextSize = 13
+FakeNameBox.ClearTextOnFocus = false
+FakeNameBox.Parent = OwnerFrame
+
+local FakeCorner = Instance.new("UICorner")
+FakeCorner.CornerRadius = UDim.new(0, 6)
+FakeCorner.Parent = FakeNameBox
+
+local ApplyBtn = Instance.new("TextButton")
+ApplyBtn.Size = UDim2.new(0.32, -6, 1, 0)
+ApplyBtn.Position = UDim2.new(0.68, 6, 0, 0)
+ApplyBtn.BackgroundColor3 = Color3.fromRGB(60, 100, 180)
+ApplyBtn.Text = "Áp dụng"
+ApplyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ApplyBtn.Font = Enum.Font.GothamBold
+ApplyBtn.TextSize = 13
+ApplyBtn.Parent = OwnerFrame
+
+local ApplyCorner = Instance.new("UICorner")
+ApplyCorner.CornerRadius = UDim.new(0, 6)
+ApplyCorner.Parent = ApplyBtn
+
+if isOwner and FakeNameEnabled then
+    ChatBox.Size = UDim2.new(1, -16, 1, -120)
+end
+
+-- Bong bóng
+local Bubble = Instance.new("ImageButton")
+Bubble.Name = "ChatBubble"
+Bubble.Size = UDim2.new(0, 64, 0, 64)
+Bubble.Position = UDim2.new(1, -90, 1, -140)
+Bubble.BackgroundColor3 = Color3.fromRGB(30, 100, 255)
+Bubble.BorderSizePixel = 0
+Bubble.Visible = false
+Bubble.Parent = ScreenGui
+Bubble.AutoButtonColor = false
+
+local BubbleCorner = Instance.new("UICorner")
+BubbleCorner.CornerRadius = UDim.new(1, 0)
+BubbleCorner.Parent = Bubble
+
+local BubbleStroke = Instance.new("UIStroke")
+BubbleStroke.Color = Color3.fromRGB(100, 180, 255)
+BubbleStroke.Thickness = 2.5
+BubbleStroke.Parent = Bubble
+
+local BubbleIcon = Instance.new("TextLabel")
+BubbleIcon.Size = UDim2.new(1, 0, 1, 0)
+BubbleIcon.BackgroundTransparency = 1
+BubbleIcon.Text = "nhìn cc"
+BubbleIcon.TextColor3 = Color3.fromRGB(255, 255, 255)
+BubbleIcon.Font = Enum.Font.GothamBold
+BubbleIcon.TextSize = 16
+BubbleIcon.Parent = Bubble
+
+local NotifySound = Instance.new("Sound")
+NotifySound.SoundId = "rbxassetid://4590662766"
+NotifySound.Volume = 0.6
+NotifySound.Parent = SoundService
+
+local function ShowNotification(name, text)
+    local Notif = Instance.new("Frame")
+    Notif.Size = UDim2.new(0, 260, 0, 60)
+    Notif.Position = UDim2.new(1, -280, 1, -220)
+    Notif.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+    Notif.BorderSizePixel = 0
+    Notif.Parent = ScreenGui
+
+    local NotifCorner = Instance.new("UICorner")
+    NotifCorner.CornerRadius = UDim.new(0, 10)
+    NotifCorner.Parent = Notif
+
+    local NotifStroke = Instance.new("UIStroke")
+    NotifStroke.Color = Color3.fromRGB(80, 120, 255)
+    NotifStroke.Thickness = 1.5
+    NotifStroke.Parent = Notif
+
+    local NotifTitle = Instance.new("TextLabel")
+    NotifTitle.Size = UDim2.new(1, -16, 0, 22)
+    NotifTitle.Position = UDim2.new(0, 10, 0, 6)
+    NotifTitle.BackgroundTransparency = 1
+    NotifTitle.Text = name
+    NotifTitle.TextColor3 = Color3.fromRGB(140, 190, 255)
+    NotifTitle.Font = Enum.Font.GothamBold
+    NotifTitle.TextSize = 14
+    NotifTitle.TextXAlignment = Enum.TextXAlignment.Left
+    NotifTitle.Parent = Notif
+
+    local NotifMsg = Instance.new("TextLabel")
+    NotifMsg.Size = UDim2.new(1, -16, 0, 24)
+    NotifMsg.Position = UDim2.new(0, 10, 0, 28)
+    NotifMsg.BackgroundTransparency = 1
+    NotifMsg.Text = text
+    NotifMsg.TextColor3 = Color3.fromRGB(230, 230, 240)
+    NotifMsg.Font = Enum.Font.Gotham
+    NotifMsg.TextSize = 13
+    NotifMsg.TextXAlignment = Enum.TextXAlignment.Left
+    NotifMsg.TextTruncate = Enum.TextTruncate.AtEnd
+    NotifMsg.Parent = Notif
+
+    Notif.Position = UDim2.new(1, 20, 1, -220)
+    TweenService:Create(Notif, TweenInfo.new(0.3), {Position = UDim2.new(1, -280, 1, -220)}):Play()
+
+    task.delay(3.5, function()
+        local tw = TweenService:Create(Notif, TweenInfo.new(0.3), {Position = UDim2.new(1, 20, 1, -220)})
+        tw:Play()
+        tw.Completed:Wait()
+        Notif:Destroy()
+    end)
+end
+
+-- Theme
+local function ApplyTheme()
+    local t = isDark and Themes.Dark or Themes.Light
+    Main.BackgroundColor3 = t.MainBg
+    TitleBar.BackgroundColor3 = t.TitleBg
+    TitleFix.BackgroundColor3 = t.TitleBg
+    ChatBox.BackgroundColor3 = t.ChatBg
+    InputFrame.BackgroundColor3 = t.InputBg
+    Stroke.Color = t.Stroke
+    Title.TextColor3 = t.TitleText
+    TextBox.TextColor3 = t.Text
+    TextBox.PlaceholderColor3 = t.Placeholder
+    SendBtn.BackgroundColor3 = t.SendBtn
+
+    if isDark then
+        TweenService:Create(SwitchKnob, TweenInfo.new(0.2), {Position = UDim2.new(0, 2, 0, 2)}):Play()
+        TweenService:Create(SwitchBg, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(60, 60, 80)}):Play()
+    else
+        TweenService:Create(SwitchKnob, TweenInfo.new(0.2), {Position = UDim2.new(0, 22, 0, 2)}):Play()
+        TweenService:Create(SwitchBg, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(100, 180, 255)}):Play()
+    end
+end
+
+SwitchBtn.MouseButton1Click:Connect(function()
+    isDark = not isDark
+    ApplyTheme()
+end)
+
+-- Fake Name Toggle
+local function ToggleFakeNameUI(enabled)
+    FakeNameEnabled = enabled
+    OwnerFrame.Visible = isOwner and enabled
+
+    if enabled then
+        TweenService:Create(FakeSwitchKnob, TweenInfo.new(0.2), {Position = UDim2.new(0, 22, 0, 2)}):Play()
+        TweenService:Create(FakeSwitchBg, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(130, 80, 200)}):Play()
+        ChatBox.Size = UDim2.new(1, -16, 1, -120)
+    else
+        TweenService:Create(FakeSwitchKnob, TweenInfo.new(0.2), {Position = UDim2.new(0, 2, 0, 2)}):Play()
+        TweenService:Create(FakeSwitchBg, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(70, 70, 90)}):Play()
+        ChatBox.Size = UDim2.new(1, -16, 1, -86)
+        FakeUserId = nil
+        FakeDisplayName = nil
+    end
+end
+
+FakeSwitchBtn.MouseButton1Click:Connect(function()
+    ToggleFakeNameUI(not FakeNameEnabled)
+end)
+
+-- Đổi Room
+local function ChangeRoomCode()
+    Title.Visible = false
+    local RoomInput = Instance.new("TextBox")
+    RoomInput.Size = UDim2.new(0, 180, 0, 26)
+    RoomInput.Position = UDim2.new(0, 12, 0, 4)
+    RoomInput.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+    RoomInput.Text = ROOM_CODE
+    RoomInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+    RoomInput.Font = Enum.Font.Gotham
+    RoomInput.TextSize = 14
+    RoomInput.Parent = TitleBar
+
+    local RoomCorner = Instance.new("UICorner")
+    RoomCorner.CornerRadius = UDim.new(0, 6)
+    RoomCorner.Parent = RoomInput
+    RoomInput:CaptureFocus()
+
+    RoomInput.FocusLost:Connect(function()
+        local newCode = RoomInput.Text:gsub("%s+", "")
+        if newCode ~= "" and newCode ~= ROOM_CODE then
+            ROOM_CODE = newCode
+            Topic = "robloxchat-" .. ROOM_CODE:lower():gsub("%W", "")
+            API = "https://ntfy.sh/" .. Topic
+            for _, child in ipairs(ChatBox:GetChildren()) do
+                if child:IsA("Frame") then child:Destroy() end
+            end
+            Title.Text = "💬 Chat Với Tín đẹp chai  | " .. ROOM_CODE
+            AddMessage(1, "Hệ thống", "Đã đổi Room Code thành: " .. ROOM_CODE, false)
+        end
+        RoomInput:Destroy()
+        Title.Visible = true
+    end)
+end
+
+ChangeRoomBtn.MouseButton1Click:Connect(ChangeRoomCode)
+
+-- Fake Name logic
+local function GetRequest()
+    return (syn and syn.request) or (http and http.request) or request or http_request
+end
+
+local function ApplyFakeName()
+    if not isOwner or not FakeNameEnabled then return end
+    local username = FakeNameBox.Text:gsub("%s+", "")
+    if username == "" then
+        FakeUserId = nil
+        FakeDisplayName = nil
+        AddMessage(1, "Hệ thống", "Đã về tên gốc", false)
+        return
+    end
+
+    task.spawn(function()
+        local success, userId = pcall(function()
+            return Players:GetUserIdFromNameAsync(username)
+        end)
+
+        if not success or not userId then
+            AddMessage(1, "Hệ thống", "Không tìm thấy username: " .. username, false)
+            return
+        end
+
+        local displayName = username
+        local req = GetRequest()
+        if req then
+            local ok, res = pcall(function()
+                return req({
+                    Url = "https://users.roblox.com/v1/users/" .. userId,
+                    Method = "GET"
+                })
+            end)
+            if ok and res and res.Body then
+                local data = HttpService:JSONDecode(res.Body)
+                if data and data.displayName then
+                    displayName = data.displayName
+                end
+            end
+        end
+
+        FakeUserId = userId
+        FakeDisplayName = displayName
+        AddMessage(1, "Hệ thống", "Đã đổi thành: " .. displayName .. " (@" .. username .. ")", false)
+    end)
+end
+
+ApplyBtn.MouseButton1Click:Connect(ApplyFakeName)
+FakeNameBox.FocusLost:Connect(function(enter)
+    if enter then ApplyFakeName() end
+end)
+
+-- Logic chính
+local LastMessageId = 0
+local Seen = {}
+local NameColors = {}
+local AvatarCache = {}
+
+local ColorList = {
+    Color3.fromRGB(120, 190, 255),
+    Color3.fromRGB(255, 140, 180),
+    Color3.fromRGB(130, 230, 160),
+    Color3.fromRGB(255, 200, 100),
+    Color3.fromRGB(190, 140, 255),
+    Color3.fromRGB(255, 160, 120),
+    Color3.fromRGB(100, 220, 220),
+    Color3.fromRGB(255, 120, 120),
+}
+
+local function GetNameColor(name)
+    if NameColors[name] then return NameColors[name] end
+    local index = 0
+    for i = 1, #name do index = index + string.byte(name, i) end
+    local color = ColorList[(index % #ColorList) + 1]
+    NameColors[name] = color
+    return color
+end
+
+local function GetAvatar(userId)
+    if AvatarCache[userId] then return AvatarCache[userId] end
+    local success, content = pcall(function()
+        return Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48)
+    end)
+    if success then
+        AvatarCache[userId] = content
+        return content
+    end
+    return "rbxasset://textures/ui/GuiImagePlaceholder.png"
+end
+
+local function AddMessage(userId, name, text, isMe)
+    local color = GetNameColor(name)
+
+    local Container = Instance.new("Frame")
+    Container.Size = UDim2.new(1, -4, 0, 0)
+    Container.BackgroundTransparency = 1
+    Container.AutomaticSize = Enum.AutomaticSize.Y
+    Container.Parent = ChatBox
+
+    local Avatar = Instance.new("ImageLabel")
+    Avatar.Size = UDim2.new(0, 28, 0, 28)
+    Avatar.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+    Avatar.BorderSizePixel = 0
+    Avatar.Image = GetAvatar(tonumber(userId) or 1)
+    Avatar.Parent = Container
+
+    local AvatarCorner = Instance.new("UICorner")
+    AvatarCorner.CornerRadius = UDim.new(1, 0)
+    AvatarCorner.Parent = Avatar
+
+    local Msg = Instance.new("TextLabel")
+    Msg.Size = UDim2.new(1, -36, 0, 0)
+    Msg.Position = UDim2.new(0, 34, 0, 6)
+    Msg.BackgroundTransparency = 1
+    Msg.Text = name .. ": " .. text
+    Msg.TextColor3 = color
+    Msg.Font = Enum.Font.Gotham
+    Msg.TextSize = 15
+    Msg.TextWrapped = true
+    Msg.TextXAlignment = Enum.TextXAlignment.Left
+    Msg.AutomaticSize = Enum.AutomaticSize.Y
+    Msg.Parent = Container
+
+    task.defer(function()
+        ChatBox.CanvasPosition = Vector2.new(0, ChatBox.AbsoluteCanvasSize.Y)
+    end)
+end
+
+local function SendMessage()
+    local msg = TextBox.Text
+    if not msg or msg:match("^%s*$") then return end
+
+    local sendUserId = (FakeNameEnabled and FakeUserId) or LocalPlayer.UserId
+    local sendName = (FakeNameEnabled and FakeDisplayName) or LocalPlayer.DisplayName
+
+    local full = sendUserId .. "|" .. sendName .. "|" .. msg
+    TextBox.Text = ""
+
+    AddMessage(sendUserId, sendName, msg, true)
+
+    task.spawn(function()
+        local req = GetRequest()
+        if not req then return end
+        pcall(function()
+            req({
+                Url = API,
+                Method = "POST",
+                Headers = {["Content-Type"] = "text/plain", ["Title"] = sendName},
+                Body = full
+            })
+        end)
+    end)
+end
+
+SendBtn.MouseButton1Click:Connect(SendMessage)
+TextBox.FocusLost:Connect(function(enter)
+    if enter then SendMessage() end
+end)
+
+task.spawn(function()
+    while task.wait(POLL_INTERVAL) do
+        local req = GetRequest()
+        if not req then continue end
+
+        local success, result = pcall(function()
+            return req({
+                Url = API .. "/json?poll=1&since=" .. tostring(LastMessageId),
+                Method = "GET"
+            })
+        end)
+
+        if success and result and result.Body then
+            local ok, data = pcall(function()
+                return HttpService:JSONDecode(result.Body)
+            end)
+
+            if ok and type(data) == "table" then
+                for _, msg in ipairs(data) do
+                    if msg.id and not Seen[msg.id] then
+                        Seen[msg.id] = true
+                        if msg.id > LastMessageId then LastMessageId = msg.id end
+
+                        local body = msg.message or ""
+                        local userId, name, text = body:match("^(%d+)|([^|]+)|(.+)$")
+                        if userId and name and text and tonumber(userId) ~= LocalPlayer.UserId then
+                            AddMessage(userId, name, text, false)
+                            if not Main.Visible then
+                                NotifySound:Play()
+                                ShowNotification(name, text)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.Slash then
+        task.delay(0.05, function()
+            if Main.Visible then
+                TextBox:CaptureFocus()
+            else
+                Main.Visible = true
+                Bubble.Visible = false
+                task.wait(0.05)
+                TextBox:CaptureFocus()
+            end
+        end)
+    end
+end)
+
+CloseBtn.MouseButton1Click:Connect(function()
+    Main.Visible = false
+    Bubble.Visible = true
+end)
+
+Bubble.MouseButton1Click:Connect(function()
+    Bubble.Visible = false
+    Main.Visible = true
+    task.wait(0.05)
+    TextBox:CaptureFocus()
+end)
+
+AddMessage(1, "Hệ thống", "Bấm phím / để gõ tin nhắn", false)
+AddMessage(1, "Hệ thống", "Room Code: " .. ROOM_CODE, false)
+
+if isOwner then
+    AddMessage(1, "Hệ thống", "Công tắc tím = Fake Name | Công tắc xám = Sáng/Tối", false)
+end
+
+print("✅ Private Chat loaded")
