@@ -1,5 +1,3 @@
--- Private Chat (công tắc Fake Name nằm cạnh công tắc Theme)
-
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local UserInputService = game:GetService("UserInputService")
@@ -530,7 +528,7 @@ FakeNameBox.FocusLost:Connect(function(enter)
 end)
 
 -- Logic chính
-local LastMessageId = 0
+local LastMessageId = ""
 local Seen = {}
 local NameColors = {}
 local AvatarCache = {}
@@ -612,6 +610,14 @@ local function SendMessage()
     local sendUserId = (FakeNameEnabled and FakeUserId) or LocalPlayer.UserId
     local sendName = (FakeNameEnabled and FakeDisplayName) or LocalPlayer.DisplayName
 
+    -- Nếu Fake Name đang bật nhưng chưa chọn tên giả thì dùng tài khoản thật
+    if not sendUserId then
+        sendUserId = LocalPlayer.UserId
+    end
+    if not sendName or sendName == "" then
+        sendName = LocalPlayer.DisplayName
+    end
+
     local full = sendUserId .. "|" .. sendName .. "|" .. msg
     TextBox.Text = ""
 
@@ -659,9 +665,9 @@ task.spawn(function()
                     if not Seen[msg.id] then
                         Seen[msg.id] = true
 
-                        local msgId = tonumber(msg.id)
-                        if msgId and msgId > LastMessageId then
-                            LastMessageId = msgId
+                        -- ntfy message ID là chuỗi, không phải số
+                        if type(msg.id) == "string" then
+                            LastMessageId = msg.id
                         end
 
                         local body = msg.message or ""
