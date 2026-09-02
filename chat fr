@@ -1,3 +1,5 @@
+-- Private Chat (công tắc Fake Name nằm cạnh công tắc Theme)
+
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local UserInputService = game:GetService("UserInputService")
@@ -528,7 +530,7 @@ FakeNameBox.FocusLost:Connect(function(enter)
 end)
 
 -- Logic chính
-local LastMessageId = ""
+local LastMessageId = "all"
 local Seen = {}
 local NameColors = {}
 local AvatarCache = {}
@@ -649,7 +651,7 @@ task.spawn(function()
 
         local success, result = pcall(function()
             return req({
-                Url = API .. "/json?poll=1&since=" .. tostring(LastMessageId),
+                Url = API .. "/json?poll=1&since=" .. HttpService:UrlEncode(tostring(LastMessageId)),
                 Method = "GET"
             })
         end)
@@ -661,7 +663,7 @@ task.spawn(function()
                     return HttpService:JSONDecode(line)
                 end)
 
-                if ok and type(msg) == "table" and msg.id then
+                if ok and type(msg) == "table" and msg.event == "message" and msg.id then
                     if not Seen[msg.id] then
                         Seen[msg.id] = true
 
