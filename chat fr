@@ -627,15 +627,28 @@ local function SendMessage()
 
     task.spawn(function()
         local req = GetRequest()
-        if not req then return end
-        pcall(function()
-            req({
+        if not req then
+            AddMessage(1, "Hệ thống", "Lỗi: không tìm thấy request()", false)
+            return
+        end
+
+        local ok, res = pcall(function()
+            return req({
                 Url = API,
                 Method = "POST",
-                Headers = {["Content-Type"] = "text/plain", ["Title"] = sendName},
+                Headers = {
+                    ["Content-Type"] = "text/plain",
+                    ["Title"] = sendName
+                },
                 Body = full
             })
         end)
+
+        if not ok or not res then
+            AddMessage(1, "Hệ thống", "POST ntfy thất bại: " .. tostring(res), false)
+        elseif res.StatusCode and (res.StatusCode < 200 or res.StatusCode >= 300) then
+            AddMessage(1, "Hệ thống", "ntfy POST HTTP " .. tostring(res.StatusCode) .. ": " .. tostring(res.Body or ""), false)
+        end
     end)
 end
 
@@ -651,7 +664,7 @@ task.spawn(function()
 
         local success, result = pcall(function()
             return req({
-                Url = API .. "/json?poll=1&since=" .. HttpService:UrlEncode(tostring(LastMessageId)),
+                Url = API .. "/json?poll=1&since=all",
                 Method = "GET"
             })
         end)
@@ -694,6 +707,10 @@ task.spawn(function()
                     end
                 end
             end
+        elseif not success then
+            AddMessage(1, "Hệ thống", "GET ntfy thất bại: " .. tostring(result), false)
+        elseif result and result.StatusCode and result.StatusCode >= 400 then
+            AddMessage(1, "Hệ thống", "ntfy GET HTTP " .. tostring(result.StatusCode), false)
         end
     end
 end)
